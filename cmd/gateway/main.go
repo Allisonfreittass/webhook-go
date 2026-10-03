@@ -4,9 +4,10 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"os"
+	"time"
 
 	"github.com/Allisonfreittass/webhook-go/internal/api"
+	"github.com/Allisonfreittass/webhook-go/internal/config"
 	"github.com/Allisonfreittass/webhook-go/internal/store"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -14,11 +15,9 @@ import (
 func main() {
 	ctx := context.Background()
 
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		databaseURL = "postgres://localhost:5432/webhook_gateway"
-	}
-	pool, err := pgxpool.New(ctx, databaseURL)
+	cfg := config.Load()
+
+	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -31,8 +30,16 @@ func main() {
 	st := store.New(pool)
 	srv := api.NewServer(st)
 
-	addr := ":8080"
-	log.Printf("Starting server on %s", addr)
+	server := &http.Server{
+		Addr:              cfg.Addr,
+		Handler:           srv.Routes(),
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
 
-	log.Fatal(http.ListenAndServe(addr, srv.Routes()))
+	log.Printf("Starting server on %s", cfg.Addr)
+
+	log.Fatal(server.ListenAndServe())
 }
