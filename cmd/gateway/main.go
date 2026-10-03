@@ -1,13 +1,34 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log"
 	"net/http"
+	"os"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
+	ctx := context.Background()
+
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		databaseURL = "postgres://localhost:5432/webhook_gateway"
+	}
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		log.Fatal(err)
+	}
+	log.Println("connected to database")
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", healthHandler)
